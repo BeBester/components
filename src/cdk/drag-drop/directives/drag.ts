@@ -74,21 +74,27 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
   private static _dragInstances: CdkDrag[] = [];
 
   /** Reference to the underlying drag instance. */
+  // drag实例
   _dragRef: DragRef<CdkDrag<T>>;
 
   /** Elements that can be used to drag the draggable item. */
+  // 拖动把手(图标) 只有点击图标才能拖动元素
   @ContentChildren(CDK_DRAG_HANDLE, {descendants: true}) _handles: QueryList<CdkDragHandle>;
 
   /** Element that will be used as a template to create the draggable item's preview. */
+  // 预览图模板配置
   @ContentChild(CDK_DRAG_PREVIEW) _previewTemplate: CdkDragPreview;
 
   /** Template for placeholder element rendered to show where a draggable would be dropped. */
+  // 自定义拖动占位符 用于显示即将落下的位置
   @ContentChild(CDK_DRAG_PLACEHOLDER) _placeholderTemplate: CdkDragPlaceholder;
 
   /** Arbitrary data to attach to this drag instance. */
+  // 绑定数据到拖拽元素 可以在指令触发的@Output事件中通过属性获取该data 一般用于识别/操作data
   @Input('cdkDragData') data: T;
 
   /** Locks the position of the dragged element along the specified axis. */
+  // 锁定拖拽坐标轴
   @Input('cdkDragLockAxis') lockAxis: DragAxis;
 
   /**
@@ -96,6 +102,9 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
    * the `cdkDrag` element and going up the DOM. Passing an alternate root element is useful
    * when trying to enable dragging on an element that you might not have access to.
    */
+  // 替代拖动根元素(必须是拖拽元素的祖先) 即通过css选择器绑定一个无法直接访问的(如其他组件)祖先元素跟随当前拖拽元素移动
+  // 如果拖动元素不是template 则查找与rootElementSelector匹配的最近祖先
+  // 如果拖动元素是template  则查找rootElementSelector匹配的拖动元素父元素的最近祖先
   @Input('cdkDragRootElement') rootElementSelector: string;
 
   /**
@@ -104,21 +113,25 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
    * will be matched starting from the element's parent and going up the DOM until a match
    * has been found.
    */
+  // 限制拖拽移动边界在某个元素内 如过传入的是string 则从其祖先元素中查找
   @Input('cdkDragBoundary') boundaryElement: string | ElementRef<HTMLElement> | HTMLElement;
 
   /**
    * Amount of milliseconds to wait after the user has put their
    * pointer down before starting to drag the element.
    */
+  // 鼠标点击到拖拽开始的延迟
   @Input('cdkDragStartDelay') dragStartDelay: DragStartDelay;
 
   /**
    * Sets the position of a `CdkDrag` that is outside of a drop container.
    * Can be used to restore the element's position for a returning user.
    */
+  // 手动指定拖拽元素的位置
   @Input('cdkDragFreeDragPosition') freeDragPosition: Point;
 
   /** Whether starting to drag this element is disabled. */
+  // 禁用拖拽
   @Input('cdkDragDisabled')
   get disabled(): boolean {
     return this._disabled || (this.dropContainer && this.dropContainer.disabled);
@@ -134,7 +147,12 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
    * is limited while it's being dragged. Gets called with a point containing the current position
    * of the user's pointer on the page, a reference to the item being dragged and its dimensions.
    * Should return a point describing where the item should be rendered.
+   * @userPointerPosition 用户指针位置
+   * @dragRef 当前拖拽元素
+   * @ClientRect 包含元素大小及相对视口位置
+   * 返回值为当前元素应该被渲染的位置
    */
+  // 自定义拖拽位置限定逻辑的回调函数
   @Input('cdkDragConstrainPosition') constrainPosition?: (
     userPointerPosition: Point,
     dragRef: DragRef,
@@ -143,6 +161,7 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
   ) => Point;
 
   /** Class to be added to the preview element. */
+  // 预览元素的css类
   @Input('cdkDragPreviewClass') previewClass: string | string[];
 
   /**
@@ -158,30 +177,42 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
    * - `ElementRef<HTMLElement> | HTMLElement` - Preview will be inserted into a specific element.
    * Same advantages and disadvantages as `parent`.
    */
+  // 配置预览在Html的插入位置。可以通过 CDK_DROP_LIST 进行全局配置
+  // global —— 预览将插入在 <body> 的底部。优点是你不必担心 overflow: hidden 或 z-index，但条目不会保留其继承的样式
+  // parent —— 预览将插入到拖动条目的父级中。优点是已继承的样式将被保留，但可能会被 overflow: hidden 裁剪，由于 z-index 而变得不可见。
+  // 此外，该预览将对选择器如 :nth-child 和一些 flexbox 配置产生影响。
+  // ElementRef<HTMLElement> | HTMLElement 预览将插入到特定元素中。具有和 parent 一样的优点和缺点。
   @Input('cdkDragPreviewContainer') previewContainer: PreviewContainer;
 
+  // 事件通知顺序started-> moved ->exited ->entered ->released ->ended ->dropped
   /** Emits when the user starts dragging the item. */
+  // 拖拽开始事件通知
   @Output('cdkDragStarted') readonly started: EventEmitter<CdkDragStart> =
     new EventEmitter<CdkDragStart>();
 
   /** Emits when the user has released a drag item, before any animations have started. */
+  // 释放拖拽元素通知 会在所有动画开始前执行
   @Output('cdkDragReleased') readonly released: EventEmitter<CdkDragRelease> =
     new EventEmitter<CdkDragRelease>();
 
   /** Emits when the user stops dragging an item in the container. */
+  // 停止拖拽时发出通知
   @Output('cdkDragEnded') readonly ended: EventEmitter<CdkDragEnd> = new EventEmitter<CdkDragEnd>();
 
   /** Emits when the user has moved the item into a new container. */
+  // 移入到新容器时通知
   @Output('cdkDragEntered') readonly entered: EventEmitter<CdkDragEnter<any>> = new EventEmitter<
     CdkDragEnter<any>
   >();
 
   /** Emits when the user removes the item its container by dragging it into another container. */
+  // 退出所在容器时通知 先调用exited 再调用 entered
   @Output('cdkDragExited') readonly exited: EventEmitter<CdkDragExit<any>> = new EventEmitter<
     CdkDragExit<any>
   >();
 
   /** Emits when the user drops the item inside a container. */
+  // 落入容器时通知
   @Output('cdkDragDropped') readonly dropped: EventEmitter<CdkDragDrop<any>> = new EventEmitter<
     CdkDragDrop<any>
   >();
@@ -191,6 +222,7 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
    * because this event will fire for every pixel that the user has dragged.
    */
   @Output('cdkDragMoved')
+  // 用户拖拽元素时通知 调用频繁 谨慎使用
   readonly moved: Observable<CdkDragMove<T>> = new Observable(
     (observer: Observer<CdkDragMove<T>>) => {
       const subscription = this._dragRef.moved
@@ -213,8 +245,10 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
 
   constructor(
     /** Element that the draggable is attached to. */
+    // 指令绑定的拖拽目标元素
     public element: ElementRef<HTMLElement>,
     /** Droppable container that the draggable is a part of. */
+    // 注入父元素的CdkDropList指令
     @Inject(CDK_DROP_LIST) @Optional() @SkipSelf() public dropContainer: CdkDropList,
     /**
      * @deprecated `_document` parameter no longer being used and will be removed.
@@ -223,13 +257,17 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
     @Inject(DOCUMENT) _document: any,
     private _ngZone: NgZone,
     private _viewContainerRef: ViewContainerRef,
+    // 注入全局配置
     @Optional() @Inject(CDK_DRAG_CONFIG) config: DragDropConfig,
+    // 注入文字方向
     @Optional() private _dir: Directionality,
+    // 注入DragDrop服务
     dragDrop: DragDrop,
     private _changeDetectorRef: ChangeDetectorRef,
     @Optional() @Self() @Inject(CDK_DRAG_HANDLE) private _selfHandle?: CdkDragHandle,
     @Optional() @SkipSelf() @Inject(CDK_DRAG_PARENT) private _parentDrag?: CdkDrag,
   ) {
+    // 创建dragRef 绑定监听mousedown/touchstart/dragstart事件
     this._dragRef = dragDrop.createDrag(element, {
       dragStartThreshold:
         config && config.dragStartThreshold != null ? config.dragStartThreshold : 5,
@@ -239,13 +277,16 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
           : 5,
       zIndex: config?.zIndex,
     });
+    // 默认设置data为当前拖拽实例
     this._dragRef.data = this;
 
     // We have to keep track of the drag instances in order to be able to match an element to
     // a drag instance. We can't go through the global registry of `DragRef`, because the root
     // element could be different.
+    // 我们必须跟踪拖动实例，以便能够将元素与拖动实例相匹配。我们无法遍历“DragRef”的全局注册表，因为根元素可能不同。
     CdkDrag._dragInstances.push(this);
 
+    // 全局默认设置
     if (config) {
       this._assignDefaults(config);
     }
@@ -257,12 +298,21 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
     // have to switch from standalone mode to drag mode in the middle of the dragging sequence which
     // is too late since the two modes save different kinds of information. We work around it by
     // assigning the drop container both from here and the list.
+    // 请注意，通常容器是在droplist拾取项目时分配的，
+    // 但在某些情况下（主要是使用 OnPush，请参见 18341）我们可能会遇到第一次变化检测传递时没有获取到项目的情况，
+    // 但是一旦用户通过拖动触发另一次传递，这些项目就会被拾取。
+    // 这是一个问题，因为项目必须在拖动序列的中间从独立模式切换到拖动模式，
+    // 这为时已晚，因为这两种模式保存了不同类型的信息。我们通过从此处和列表中分配放置容器来解决这个问题。
     if (dropContainer) {
+      // 在拖拽元素中登记dropContainer
       this._dragRef._withDropContainer(dropContainer._dropListRef);
+      // 在dropContainer添加当前拖拽元素
       dropContainer.addItem(this);
     }
 
+    // 将 CdkDrag 的@Input输入与底层 DragRef 的属性同步
     this._syncInputs(this._dragRef);
+    // 处理来自底层“DragRef”的事件 转换为组件的@Output
     this._handleEvents(this._dragRef);
   }
 
@@ -302,13 +352,18 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
   ngAfterViewInit() {
     // Normally this isn't in the zone, but it can cause major performance regressions for apps
     // using `zone-patch-rxjs` because it'll trigger a change detection when it unsubscribes.
+    // 通常这不在zone中执行，但它可能会导致使用 `zone-patch-rxjs` 的应用程序出现重大性能下降，因为它会在取消订阅时触发更改检测。
     this._ngZone.runOutsideAngular(() => {
       // We need to wait for the zone to stabilize, in order for the reference
       // element to be in the proper place in the DOM. This is mostly relevant
       // for draggable elements inside portals since they get stamped out in
       // their original DOM position and then they get transferred to the portal.
+      // 我们需要等待区域稳定下来，以便引用元素位于 DOM 中的正确位置。
+      // 这主要与门户内的可拖动元素相关，因为它们在其原始 DOM 位置被标记出来，然后被转移到门户
       this._ngZone.onStable.pipe(take(1), takeUntil(this._destroyed)).subscribe(() => {
+        // 更新rootElement
         this._updateRootElement();
+        // 设置拖动图表与拖动引用同步的侦听器。
         this._setupHandlesListener();
 
         if (this.freeDragPosition) {
@@ -318,12 +373,14 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
     });
   }
 
+  // 监听rootElementSelector/freeDragPosition变化
   ngOnChanges(changes: SimpleChanges) {
     const rootSelectorChange = changes['rootElementSelector'];
     const positionChange = changes['freeDragPosition'];
 
     // We don't have to react to the first change since it's being
     // handled in `ngAfterViewInit` where it needs to be deferred.
+    // 我们不必对第一个更改做出反应，因为它在需要延迟的 ngAfterViewInit 中处理。
     if (rootSelectorChange && !rootSelectorChange.firstChange) {
       this._updateRootElement();
     }
@@ -361,6 +418,7 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
         element.closest !== undefined
           ? (element.closest(this.rootElementSelector) as HTMLElement)
           : // Comment tag doesn't have closest method, so use parent's one.
+            // 注解元素如模板template无法使用closest 方法,所以使用父元素的
             (element.parentElement?.closest(this.rootElementSelector) as HTMLElement);
     }
 
@@ -387,6 +445,7 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   /** Syncs the inputs of the CdkDrag with the options of the underlying DragRef. */
+  // 将 CdkDrag 的输入与底层 DragRef 的选项同步
   private _syncInputs(ref: DragRef<CdkDrag<T>>) {
     ref.beforeStarted.subscribe(() => {
       if (!ref.isDragging()) {
@@ -431,6 +490,7 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
     // This only needs to be resolved once.
     ref.beforeStarted.pipe(take(1)).subscribe(() => {
       // If we managed to resolve a parent through DI, use it.
+      // 自动注入的parentDrag不为空 则使用
       if (this._parentDrag) {
         ref.withParent(this._parentDrag._dragRef);
         return;
@@ -438,6 +498,8 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
 
       // Otherwise fall back to resolving the parent by looking up the DOM. This can happen if
       // the item was projected into another item by something like `ngTemplateOutlet`.
+      // 否则回退到通过查找 DOM 来解析父对象。
+      // 如果该项目被诸如 `ngTemplateOutlet` 之类的东西投影到另一个项目中，就会发生这种情况
       let parent = this.element.nativeElement.parentElement;
       while (parent) {
         if (parent.classList.contains(DRAG_HOST_CLASS)) {
@@ -454,6 +516,7 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   /** Handles the events from the underlying `DragRef`. */
+  // 处理来自底层“DragRef”的事件
   private _handleEvents(ref: DragRef<CdkDrag<T>>) {
     ref.started.subscribe(startEvent => {
       this.started.emit({source: this, event: startEvent.event});
@@ -552,24 +615,30 @@ export class CdkDrag<T = any> implements AfterViewInit, OnChanges, OnDestroy {
   }
 
   /** Sets up the listener that syncs the handles with the drag ref. */
+  // 设置拖动图标与拖动引用同步的侦听器。
   private _setupHandlesListener() {
     // Listen for any newly-added handles.
     this._handles.changes
       .pipe(
+        // 发出的初始值
         startWith(this._handles),
         // Sync the new handles with the DragRef.
+        // 同步新的拖动把手与DragRef
         tap((handles: QueryList<CdkDragHandle>) => {
           const childHandleElements = handles
+            // _parentDrag在handle指令创建时就已注入
             .filter(handle => handle._parentDrag === this)
             .map(handle => handle.element);
 
           // Usually handles are only allowed to be a descendant of the drag element, but if
           // the consumer defined a different drag root, we should allow the drag element
           // itself to be a handle too.
+          // 通常拖动把手只允许作为拖动元素的后代，但如果用户定义了不同的拖动rootElement，我们也应该允许拖动元素本身作为句柄。
           if (this._selfHandle && this.rootElementSelector) {
             childHandleElements.push(this.element);
           }
 
+          // 注册handles 更新handles是否可交互/及禁用的handles集合
           this._dragRef.withHandles(childHandleElements);
         }),
         // Listen if the state of any of the handles changes.

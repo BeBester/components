@@ -90,6 +90,7 @@ export class DragDropRegistry<I extends {isDragging(): boolean}, C> implements O
     // The `touchmove` event gets bound once, ahead of time, because WebKit
     // won't preventDefault on a dynamically-added `touchmove` listener.
     // See https://bugs.webkit.org/show_bug.cgi?id=184250.
+    // 提前绑定一次`touchmove` 事件，因为 WebKit 不会在动态添加的 `touchmove` 侦听器上阻止默认设置。
     if (this._dragInstances.size === 1) {
       this._ngZone.runOutsideAngular(() => {
         // The event handler has to be explicitly active,
@@ -252,15 +253,20 @@ export class DragDropRegistry<I extends {isDragging(): boolean}, C> implements O
   };
 
   /** Event listener for `touchmove` that is bound even if no dragging is happening. */
+  // 即使没有发生拖拽 也绑定touchmove事件 以阻止默认行为
+  // WebKit动态添加的 `touchmove`监听  无法阻止默认设置。
   private _persistentTouchmoveListener = (event: TouchEvent) => {
     if (this._activeDragInstances.length > 0) {
       // Note that we only want to prevent the default action after dragging has actually started.
       // Usually this is the same time at which the item is added to the `_activeDragInstances`,
       // but it could be pushed back if the user has set up a drag delay or threshold.
+      // 请注意，我们只想在实际开始拖动后阻止默认操作。https://1024.page/2019/web/about-touchevent
+      // 通常这是将项目添加到 _activeDragInstances 的同一时间，但如果用户设置了拖动延迟或阈值，它可能会被推迟。
       if (this._activeDragInstances.some(this._draggingPredicate)) {
         event.preventDefault();
       }
 
+      // 下发指针移动事件
       this.pointerMove.next(event);
     }
   };

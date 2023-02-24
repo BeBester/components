@@ -238,6 +238,7 @@ export class DragRef<T = any> {
   private _boundaryElement: HTMLElement | null = null;
 
   /** Whether the native dragging interactions have been enabled on the root element. */
+  // 是否允许发生拖拽的交互行为
   private _nativeInteractionsEnabled = true;
 
   /** Client rect of the root element when the dragging sequence has started. */
@@ -376,8 +377,11 @@ export class DragRef<T = any> {
     private _viewportRuler: ViewportRuler,
     private _dragDropRegistry: DragDropRegistry<DragRef, DropListRef>,
   ) {
+    // 监听拖拽元素本身 如果时网状的 绑定可拖拽的父元素DragRef
     this.withRootElement(element).withParent(_config.parentDragRef || null);
+    // 跟踪父元素的滚动位置和尺寸
     this._parentPositions = new ParentPositionTracker(_document);
+    // 注册拖拽实例 并绑定触摸事件
     _dragDropRegistry.registerDragItem(this);
   }
 
@@ -405,13 +409,18 @@ export class DragRef<T = any> {
   /** Registers the handles that can be used to drag the element. */
   withHandles(handles: (HTMLElement | ElementRef<HTMLElement>)[]): this {
     this._handles = handles.map(handle => coerceElement(handle));
+    // 将当前拖拽实例的状态与把手可拖拽绑定 即如果元素本身是被disabled则其相关的handle也不应该产生拖拽行为
     this._handles.forEach(handle => toggleNativeDragInteractions(handle, this.disabled));
+    // 切换当前拖拽实例是否可以拖拽 如果当前元素已经处于拖拽状态 且持有的拖拽把手长度为0 则设置为不可拖拽
     this._toggleNativeDragInteractions();
 
     // Delete any lingering disabled handles that may have been destroyed. Note that we re-create
     // the set, rather than iterate over it and filter out the destroyed handles, because while
     // the ES spec allows for sets to be modified while they're being iterated over, some polyfills
     // use an array internally which may throw an error.
+    // 更新禁用把手集合，删除任何可能已被销毁的禁用把手。
+    // 请注意，我们重新创建集合，而不是迭代它并过滤掉被破坏的句柄，因为虽然 ES 规范允许在迭代时修改集合，
+    // 但一些 polyfills 在内部使用数组，这可能会抛出错误。
     const disabledHandles = new Set<HTMLElement>();
     this._disabledHandles.forEach(handle => {
       if (this._handles.indexOf(handle) > -1) {
@@ -444,15 +453,19 @@ export class DragRef<T = any> {
    * Sets an alternate drag root element. The root element is the element that will be moved as
    * the user is dragging. Passing an alternate root element is useful when trying to enable
    * dragging on an element that you might not have access to.
+   * 绑定外部祖先元素
    */
   withRootElement(rootElement: ElementRef<HTMLElement> | HTMLElement): this {
     const element = coerceElement(rootElement);
 
     if (element !== this._rootElement) {
+      // 创建对象时为空
       if (this._rootElement) {
+        // 移除当前_rootElement事件监听
         this._removeRootElementListeners(this._rootElement);
       }
 
+      // 监听新的rootElement事件
       this._ngZone.runOutsideAngular(() => {
         element.addEventListener('mousedown', this._pointerDown, activeEventListenerOptions);
         element.addEventListener('touchstart', this._pointerDown, passiveEventListenerOptions);
@@ -1294,15 +1307,20 @@ export class DragRef<T = any> {
   }
 
   /** Toggles the native drag interactions, based on how many handles are registered. */
+  // 切换当前拖拽实例的交互行为
   private _toggleNativeDragInteractions() {
+    // 如果根元素和handle任一为空 不执行额外操作
     if (!this._rootElement || !this._handles) {
       return;
     }
 
+    // 如果handles不为空 且当前元素处于拖拽状态 则允许交互
     const shouldEnable = this._handles.length > 0 || !this.isDragging();
 
+    // 如果交互状态不发生变化则不修改
     if (shouldEnable !== this._nativeInteractionsEnabled) {
       this._nativeInteractionsEnabled = shouldEnable;
+      // 设置_rootElement是否允许交互为变更后的值
       toggleNativeDragInteractions(this._rootElement, shouldEnable);
     }
   }

@@ -43,6 +43,7 @@ export function extendStyles(
 
 /**
  * Toggles whether the native drag interactions should be enabled for an element.
+ * 切换任一元素的拖拽状态
  * @param element Element on which to toggle the drag interactions.
  * @param enable Whether the drag interactions should be enabled.
  * @docs-private
